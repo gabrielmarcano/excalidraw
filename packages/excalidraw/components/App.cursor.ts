@@ -1,4 +1,9 @@
-import { CURSOR_TYPE, MIME_TYPES, THEME } from "@excalidraw/common";
+import {
+  CURSOR_TYPE,
+  MIME_TYPES,
+  THEME,
+  getStrokeWidthByKey,
+} from "@excalidraw/common";
 
 import { isHandToolActive, isEraserActive } from "../appState";
 
@@ -49,12 +54,23 @@ export class AppCursor {
     type: AppState["activeTool"]["type"];
     bucketFillColor?: string;
     theme?: AppState["theme"];
+    freedrawColor?: AppState["currentItemStrokeColor"];
+    freedrawWidthKey?: AppState["currentItemStrokeWidthKey"];
   } | null = null;
 
   private eraserCanvasCache:
     | (HTMLCanvasElement & { theme?: AppState["theme"] })
     | null = null;
   private eraserPreviewDataURL: DataURL | null = null;
+
+  private freedrawCanvasCache:
+    | (HTMLCanvasElement & {
+        theme?: AppState["theme"];
+        color?: AppState["currentItemStrokeColor"];
+        strokeWidthKey?: AppState["currentItemStrokeWidthKey"];
+      })
+    | null = null;
+  private freedrawPreviewDataURL: DataURL | null = null;
 
   constructor(private app: App) {}
 
@@ -103,7 +119,8 @@ export class AppCursor {
     const theme =
       activeTool.type === "eraser" ||
       activeTool.type === "laser" ||
-      activeTool.type === "bucketfill"
+      activeTool.type === "bucketfill" ||
+      activeTool.type === "freedraw"
         ? this.app.state.theme
         : undefined;
 
@@ -114,12 +131,23 @@ export class AppCursor {
             theme,
           )
         : undefined;
+
+    const freedrawColor =
+      activeTool.type === "freedraw"
+        ? this.app.state.currentItemStrokeColor
+        : undefined;
+    const freedrawWidthKey =
+      activeTool.type === "freedraw"
+        ? this.app.state.currentItemStrokeWidthKey
+        : undefined;
     const memo = this.toolCursorMemo;
     if (
       memo?.canvas === canvas &&
       memo.type === activeTool.type &&
       memo.bucketFillColor === bucketFillColor &&
-      memo.theme === theme
+      memo.theme === theme &&
+      memo.freedrawColor === freedrawColor &&
+      memo.freedrawWidthKey === freedrawWidthKey
     ) {
       return;
     }
@@ -143,6 +171,8 @@ export class AppCursor {
           ? laserPointerCursorDataURL_lightMode
           : laserPointerCursorDataURL_darkMode;
       this.set(`url(${url}), auto`);
+    } else if (activeTool.type === "freedraw") {
+      this.applyFreedraw();
     } else if (!["image", "custom"].includes(activeTool.type)) {
       this.set(CURSOR_TYPE.CROSSHAIR);
       // do nothing if image tool is selected which suggests there's
@@ -157,6 +187,8 @@ export class AppCursor {
       type: activeTool.type,
       bucketFillColor,
       theme,
+      freedrawColor,
+      freedrawWidthKey,
     };
   };
 
@@ -231,6 +263,53 @@ export class AppCursor {
 
     this.set(
       `url(${this.eraserPreviewDataURL}) ${cursorImageSizePx / 2} ${
+        cursorImageSizePx / 2
+      }, auto`,
+    );
+  };
+
+  private applyFreedraw = () => {
+    const cursorImageSizePx = 20;
+    const theme = this.app.state.theme;
+    const color = this.app.state.currentItemStrokeColor;
+    const strokeWidthKey = this.app.state.currentItemStrokeWidthKey;
+
+    if (
+      !this.freedrawCanvasCache ||
+      this.freedrawCanvasCache.theme !== theme ||
+      this.freedrawCanvasCache.color !== color ||
+      this.freedrawCanvasCache.strokeWidthKey !== strokeWidthKey
+    ) {
+      const isDarkTheme = theme === THEME.DARK;
+      const strokeWidth = getStrokeWidthByKey("freedraw", strokeWidthKey);
+      this.freedrawCanvasCache = this.app.ownerDocument.createElement("canvas");
+      this.freedrawCanvasCache.theme = theme;
+      this.freedrawCanvasCache.color = color;
+      this.freedrawCanvasCache.strokeWidthKey = strokeWidthKey;
+      this.freedrawCanvasCache.height = cursorImageSizePx;
+      this.freedrawCanvasCache.width = cursorImageSizePx;
+      const context = this.freedrawCanvasCache.getContext("2d")!;
+      context.lineWidth = 1;
+      context.filter = isDarkTheme ? "invert(93%) hue-rotate(180deg)" : "none";
+      context.beginPath();
+      context.arc(
+        this.freedrawCanvasCache.width / 2,
+        this.freedrawCanvasCache.height / 2,
+        strokeWidth * 2,
+        0,
+        2 * Math.PI,
+      );
+      context.fillStyle = color;
+      context.fill();
+      context.strokeStyle = color;
+      context.stroke();
+      this.freedrawPreviewDataURL = this.freedrawCanvasCache.toDataURL(
+        MIME_TYPES.svg,
+      ) as DataURL;
+    }
+
+    this.set(
+      `url(${this.freedrawPreviewDataURL}) ${cursorImageSizePx / 2} ${
         cursorImageSizePx / 2
       }, auto`,
     );

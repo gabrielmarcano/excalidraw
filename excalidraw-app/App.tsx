@@ -47,7 +47,7 @@ import {
   share,
   youtubeIcon,
 } from "@excalidraw/excalidraw/components/icons";
-import { isElementLink } from "@excalidraw/element";
+import { isElementLink, getNonDeletedElements } from "@excalidraw/element";
 import {
   bumpElementVersions,
   restoreAppState,
@@ -64,6 +64,7 @@ import {
 import type { RemoteExcalidrawElement } from "@excalidraw/excalidraw/data/reconcile";
 import type { RestoredDataState } from "@excalidraw/excalidraw/data/restore";
 import type {
+  ExcalidrawElement,
   FileId,
   NonDeletedExcalidrawElement,
   OrderedExcalidrawElement,
@@ -107,6 +108,7 @@ import {
   exportToExcalidrawPlus,
 } from "./components/ExportToExcalidrawPlus";
 import { TopErrorBoundary } from "./components/TopErrorBoundary";
+import { BoardsDialog } from "./components/BoardsDialog";
 
 import {
   exportToBackend,
@@ -117,6 +119,7 @@ import {
 
 import { updateStaleImageStatuses } from "./data/FileManager";
 import { FileStatusStore } from "./data/fileStatusStore";
+import { boards } from "./data/Boards";
 import {
   importFromLocalStorage,
   importUsernameFromLocalStorage,
@@ -230,6 +233,21 @@ const initializeScene = async (opts: {
   );
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
 
+  const storedActiveBoardId = boards.getStoredActiveId();
+  const activeBoard = storedActiveBoardId
+    ? await boards.get(storedActiveBoardId)
+    : null;
+
+  boards.setActive(
+    activeBoard
+      ? {
+          id: activeBoard.id,
+          name: activeBoard.name,
+          createdAt: activeBoard.createdAt,
+        }
+      : null,
+  );
+
   const localDataState = importFromLocalStorage();
 
   let scene: Omit<
@@ -240,11 +258,20 @@ const initializeScene = async (opts: {
   > & {
     scrollToContent?: boolean;
   } = {
-    elements: restoreElements(localDataState?.elements, null, {
-      repairBindings: true,
-      deleteInvisibleElements: true,
-    }),
-    appState: restoreAppState(localDataState?.appState, null),
+    elements: restoreElements(
+      activeBoard ? activeBoard.elements : localDataState?.elements,
+      null,
+      {
+        repairBindings: true,
+        deleteInvisibleElements: true,
+      },
+    ),
+    appState: restoreAppState(
+      activeBoard
+        ? { ...localDataState?.appState, name: activeBoard.name }
+        : localDataState?.appState,
+      null,
+    ),
   };
 
   let roomLinkData = getCollaborationLinkData(window.location.href);
@@ -258,6 +285,7 @@ const initializeScene = async (opts: {
       // otherwise, prompt whether user wants to override current scene
       (await openConfirmModal(shareableLinkConfirmDialog))
     ) {
+      boards.setActive(null);
       if (jsonBackendMatch) {
         const imported = await importFromBackend(
           jsonBackendMatch[1],
@@ -312,9 +340,11 @@ const initializeScene = async (opts: {
         !scene.elements.length ||
         (await openConfirmModal(shareableLinkConfirmDialog))
       ) {
+        boards.setActive(null);
         return { scene: data, isExternalScene };
       }
     } catch (error: any) {
+      boards.setActive(null);
       return {
         scene: {
           appState: {
@@ -360,6 +390,17 @@ const initializeScene = async (opts: {
       key: roomLinkData.roomKey,
     };
   } else if (scene) {
+    if (!isExternalScene && !boards.getActive()) {
+      const created = await boards.create({
+        name: scene.appState?.name || t("labels.untitled"),
+        elements: scene.elements,
+      });
+      boards.setActive({
+        id: created.id,
+        name: created.name,
+        createdAt: created.createdAt,
+      });
+    }
     return isExternalScene && jsonBackendMatch
       ? {
           scene,
@@ -548,9 +589,11 @@ const ExcalidrawWrapper = () => {
           }
           // on fresh load, clear unused files from IDB (from previous
           // session)
-          LocalData.fileStorage.clearObsoleteFiles({
-            currentFileIds: fileIds,
-          });
+          boards.getReferencedFileIds().then((boardFileIds) => {
+            LocalData.fileStorage.clearObsoleteFiles({
+              currentFileIds: fileIds.concat(boardFileIds),
+            });
+          }, console.error);
         }
       }
     },
@@ -604,13 +647,14 @@ const ExcalidrawWrapper = () => {
       ) {
         // don't sync if local state is newer or identical to browser state
         if (isBrowserStorageStateNewer(STORAGE_KEYS.VERSION_DATA_STATE)) {
-          const localDataState = importFromLocalStorage();
           const username = importUsernameFromLocalStorage();
           setLangCode(getPreferredLanguage());
-          excalidrawAPI.updateScene({
-            ...localDataState,
-            captureUpdate: CaptureUpdateAction.NEVER,
-          });
+          if (boards.getStoredActiveId() === (boards.getActive()?.id ?? null)) {
+            excalidrawAPI.updateScene({
+              ...importFromLocalStorage(),
+              captureUpdate: CaptureUpdateAction.NEVER,
+            });
+          }
           LibraryIndexedDBAdapter.load().then((data) => {
             if (data) {
               excalidrawAPI.updateLibrary({
@@ -766,6 +810,135 @@ const ExcalidrawWrapper = () => {
 
   const [latestShareableLink, setLatestShareableLink] = useState<string | null>(
     null,
+  );
+
+  const [isBoardsDialogOpen, setIsBoardsDialogOpen] = useState(false);
+
+  const loadBoardFiles = useCallback(
+    (elements: readonly ExcalidrawElement[]) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+      const fileIds = elements.reduce((acc, element) => {
+        if (isInitializedImageElement(element)) {
+          return acc.concat(element.fileId);
+        }
+        return acc;
+      }, [] as FileId[]);
+
+      if (!fileIds.length) {
+        return;
+      }
+      LocalData.fileStorage
+        .getFiles(fileIds)
+        .then(async ({ loadedFiles, erroredFiles }) => {
+          if (loadedFiles.length) {
+            excalidrawAPI.addFiles(loadedFiles);
+          }
+          updateStaleImageStatuses({
+            excalidrawAPI,
+            erroredFiles,
+            elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
+          });
+        });
+    },
+    [excalidrawAPI],
+  );
+
+  const openBoard = useCallback(
+    async (id: string) => {
+      if (!excalidrawAPI || id === boards.getActive()?.id) {
+        return;
+      }
+      LocalData.flushSave();
+      const record = await boards.get(id);
+      if (!record) {
+        excalidrawAPI.setToast({ message: t("boards.errors.notFound") });
+        return;
+      }
+      boards.setActive({
+        id: record.id,
+        name: record.name,
+        createdAt: record.createdAt,
+      });
+      const elements = restoreElements(record.elements, null, {
+        repairBindings: true,
+      });
+      excalidrawAPI.updateScene({
+        elements,
+        appState: { name: record.name },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+      excalidrawAPI.history.clear();
+      loadBoardFiles(elements);
+      const visibleElements = getNonDeletedElements(elements);
+      if (visibleElements.length) {
+        excalidrawAPI.setViewport({
+          target: visibleElements,
+          fit: "scale-down",
+          animation: false,
+        });
+      }
+    },
+    [excalidrawAPI, loadBoardFiles],
+  );
+
+  const createBoard = useCallback(
+    async (name?: string) => {
+      if (!excalidrawAPI) {
+        return null;
+      }
+      LocalData.flushSave();
+      const record = await boards.create({
+        name: name?.trim() || t("labels.untitled"),
+        elements: [],
+      });
+      boards.setActive({
+        id: record.id,
+        name: record.name,
+        createdAt: record.createdAt,
+      });
+      excalidrawAPI.updateScene({
+        elements: [],
+        appState: { name: record.name },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+      excalidrawAPI.history.clear();
+      return record;
+    },
+    [excalidrawAPI],
+  );
+
+  const renameBoard = useCallback(
+    async (id: string, name: string) => {
+      const updated = await boards.rename(
+        id,
+        name.trim() || t("labels.untitled"),
+      );
+      if (updated && boards.getActive()?.id === id && excalidrawAPI) {
+        excalidrawAPI.updateScene({
+          appState: { name: updated.name },
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+      }
+    },
+    [excalidrawAPI],
+  );
+
+  const deleteBoard = useCallback(
+    async (id: string) => {
+      if (boards.getActive()?.id === id) {
+        const summaries = await boards.list();
+        const fallback = summaries.find((summary) => summary.id !== id);
+        if (fallback) {
+          await openBoard(fallback.id);
+        } else {
+          await createBoard();
+        }
+      }
+      await boards.remove(id);
+    },
+    [openBoard, createBoard],
   );
 
   const onExportToBackend = async (
@@ -1033,7 +1206,20 @@ const ExcalidrawWrapper = () => {
           isCollabEnabled={!isCollabDisabled}
           theme={appTheme}
           refresh={() => forceRefresh((prev) => !prev)}
+          onBoardsOpen={() => setIsBoardsDialogOpen(true)}
         />
+        {isBoardsDialogOpen && (
+          <BoardsDialog
+            activeBoardId={boards.getActive()?.id ?? null}
+            onCloseRequest={() => setIsBoardsDialogOpen(false)}
+            onOpenBoard={openBoard}
+            onCreateBoard={async (name) => {
+              await createBoard(name);
+            }}
+            onRenameBoard={renameBoard}
+            onDeleteBoard={deleteBoard}
+          />
+        )}
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}
           isCollabEnabled={!isCollabDisabled}
@@ -1100,7 +1286,15 @@ const ExcalidrawWrapper = () => {
           }}
         />
 
-        <AppSidebar />
+        <AppSidebar
+          activeBoardId={boards.getActive()?.id ?? null}
+          onOpenBoard={openBoard}
+          onCreateBoard={async (name) => {
+            await createBoard(name);
+          }}
+          onRenameBoard={renameBoard}
+          onDeleteBoard={deleteBoard}
+        />
 
         {errorMessage && (
           <ErrorDialog onClose={() => setErrorMessage("")}>

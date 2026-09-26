@@ -1,12 +1,14 @@
 import clsx from "clsx";
 
-import { actionShortcuts } from "../../actions";
+import { actionToggleZenMode } from "../../actions";
 import { useTunnels } from "../../context/tunnels";
-import { ExitZenModeButton, UndoRedoActions, ZoomActions } from "../Actions";
+import { t } from "../../i18n";
+import { UndoRedoActions, ZoomActions } from "../Actions";
 import { useApp } from "../App";
-import { HelpButton } from "../HelpButton";
+import { IconButton } from "../IconButton";
 import { Section } from "../Section";
 import Stack from "../Stack";
+import { coffeeIcon } from "../icons";
 
 import type { ActionManager } from "../../actions/manager";
 import type { UIAppState } from "../../types";
@@ -14,14 +16,12 @@ import type { UIAppState } from "../../types";
 const Footer = ({
   appState,
   actionManager,
-  showExitZenModeBtn,
   renderWelcomeScreen,
   defaultUIEnabled,
   zoomUIEnabled,
 }: {
   appState: UIAppState;
   actionManager: ActionManager;
-  showExitZenModeBtn: boolean;
   renderWelcomeScreen: boolean;
   defaultUIEnabled: boolean;
   zoomUIEnabled: boolean;
@@ -65,28 +65,22 @@ const Footer = ({
       )}
       <FooterCenterTunnel.Out />
       {(defaultUIEnabled || renderWelcomeScreen) && (
-        <div
-          className={clsx(
-            "layer-ui__wrapper__footer-right zen-mode-transition",
-            {
-              "transition-right": appState.zenModeEnabled,
-            },
-          )}
-        >
+        <div className="layer-ui__wrapper__footer-right">
           <div style={{ position: "relative" }}>
             {renderWelcomeScreen && <WelcomeScreenHelpHintTunnel.Out />}
-            {defaultUIEnabled && (
-              <HelpButton
-                onClick={() => actionManager.executeAction(actionShortcuts)}
-              />
-            )}
           </div>
         </div>
       )}
       {defaultUIEnabled && (
-        <ExitZenModeButton
-          actionManager={actionManager}
-          showExitZenModeBtn={showExitZenModeBtn}
+        <IconButton
+          type="toggle"
+          icon={coffeeIcon}
+          checked={appState.zenModeEnabled}
+          title={t("buttons.zenMode")}
+          aria-label={t("buttons.zenMode")}
+          data-testid="zen-mode-toggle"
+          className="zen-mode-toggle"
+          onSelect={() => actionManager.executeAction(actionToggleZenMode)}
         />
       )}
     </footer>

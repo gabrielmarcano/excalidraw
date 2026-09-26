@@ -463,7 +463,6 @@ import LayerUI from "./LayerUI";
 import { ElementCanvasButton } from "./MagicButton";
 import { SVGLayer } from "./SVGLayer";
 import Spinner from "./Spinner";
-import { searchItemInFocusAtom } from "./SearchMenu";
 import { isSidebarDockedAtom } from "./Sidebar/Sidebar";
 import { StaticCanvas, InteractiveCanvas } from "./canvases";
 import NewElementCanvas from "./canvases/NewElementCanvas";
@@ -2422,6 +2421,7 @@ class App extends React.Component<AppProps, AppState> {
               this.state.viewModeEnabled ||
               this.state.openDialog?.name === "elementLinkSelector",
             "excalidraw--mobile": this.editorInterface.formFactor === "phone",
+            "excalidraw--tablet": this.editorInterface.formFactor === "tablet",
             "excalidraw--non-interactive": !this.isInteractionEnabled(),
             "excalidraw--navigation":
               !this.isInteractionEnabled() && this.isNavigationEnabled(),
@@ -2505,10 +2505,6 @@ class App extends React.Component<AppProps, AppState> {
                             renderTopLeftUI={renderTopLeftUI}
                             renderTopRightUI={renderTopRightUI}
                             renderCustomStats={renderCustomStats}
-                            showExitZenModeBtn={
-                              typeof this.props?.zenModeEnabled ===
-                                "undefined" && this.state.zenModeEnabled
-                            }
                             UIOptions={this.props.UIOptions}
                             onExportImage={this.onExportImage}
                             renderWelcomeScreen={
@@ -3731,10 +3727,14 @@ class App extends React.Component<AppProps, AppState> {
     }
   };
 
-  private getFormFactor = (editorWidth: number, editorHeight: number) => {
+  private getFormFactor = (
+    editorWidth: number,
+    editorHeight: number,
+    isTouchDevice?: boolean,
+  ) => {
     return (
       this.props.UIOptions.getFormFactor?.(editorWidth, editorHeight) ??
-      getFormFactor(editorWidth, editorHeight)
+      getFormFactor(editorWidth, editorHeight, isTouchDevice)
     );
   };
 
@@ -3758,7 +3758,11 @@ class App extends React.Component<AppProps, AppState> {
         : MQ_RIGHT_SIDEBAR_MIN_WIDTH;
     const nextEditorInterface = updateObject(this.editorInterface, {
       desktopUIMode: storedDesktopUIMode ?? this.editorInterface.desktopUIMode,
-      formFactor: this.getFormFactor(editorWidth, editorHeight),
+      formFactor: this.getFormFactor(
+        editorWidth,
+        editorHeight,
+        userAgentDescriptor.isMobileDevice,
+      ),
       userAgent: userAgentDescriptor,
       canFitSidebar: editorWidth > sidebarBreakpoint,
       isLandscape: editorWidth > editorHeight,
@@ -8624,7 +8628,6 @@ class App extends React.Component<AppProps, AppState> {
           },
         };
       });
-      this.updateEditorAtom(searchItemInFocusAtom, null);
     }
 
     if (editorJotaiStore.get(convertElementTypePopupAtom)) {

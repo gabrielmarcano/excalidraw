@@ -18,7 +18,6 @@ import { getShortcutKey } from "../../shortcut";
 import {
   actionClearCanvas,
   actionLink,
-  actionToggleSearchMenu,
   actionToggleTheme,
 } from "../../actions";
 import {
@@ -439,15 +438,6 @@ function CommandPaletteInner({
                 },
               });
             }
-          },
-        },
-        {
-          label: t("search.title"),
-          category: DEFAULT_CATEGORIES.app,
-          icon: searchIcon,
-          viewMode: true,
-          perform: () => {
-            actionManager.executeAction(actionToggleSearchMenu);
           },
         },
         {

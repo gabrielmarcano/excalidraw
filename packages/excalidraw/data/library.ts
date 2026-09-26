@@ -6,7 +6,6 @@ import {
   APP_NAME,
   EVENT,
   DEFAULT_SIDEBAR,
-  LIBRARY_SIDEBAR_TAB,
   arrayToMap,
   cloneJSON,
   preventUnload,
@@ -299,7 +298,10 @@ class Library {
   }): Promise<LibraryItems> => {
     if (openLibraryMenu) {
       this.app.setState({
-        openSidebar: { name: DEFAULT_SIDEBAR.name, tab: LIBRARY_SIDEBAR_TAB },
+        openSidebar: {
+          name: DEFAULT_SIDEBAR.name,
+          tab: DEFAULT_SIDEBAR.defaultTab,
+        },
       });
     }
 

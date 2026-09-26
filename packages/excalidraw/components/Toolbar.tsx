@@ -6,8 +6,17 @@ import { KEYS } from "@excalidraw/common";
 import { useTunnels } from "../context/tunnels";
 import { t } from "../i18n";
 
-import { useEditorInterface, useStylesPanelMode } from "./App";
+import { actionClearCanvas } from "../actions";
+import { useSetAtom } from "../editor-jotai";
+
+import {
+  useEditorInterface,
+  useExcalidrawActionManager,
+  useStylesPanelMode,
+} from "./App";
+import { activeConfirmDialogAtom } from "./ActiveConfirmDialog";
 import { HintViewer } from "./HintViewer";
+import { IconButton } from "./IconButton";
 import { Island } from "./Island";
 import { LockButton } from "./LockButton";
 import { PenModeButton } from "./PenModeButton";
@@ -24,6 +33,7 @@ import {
   MagicIcon,
   mermaidLogoIcon,
   DotsIcon,
+  TrashIcon,
 } from "./icons";
 import {
   ArrowToolButton,
@@ -219,6 +229,26 @@ const ExtraToolsDropdown = ({
   );
 };
 
+const ClearCanvasButton = () => {
+  const setActiveConfirmDialog = useSetAtom(activeConfirmDialogAtom);
+  const actionManager = useExcalidrawActionManager();
+
+  if (!actionManager.isActionEnabled(actionClearCanvas)) {
+    return null;
+  }
+
+  return (
+    <IconButton
+      type="button"
+      icon={TrashIcon}
+      title={t("buttons.clearReset")}
+      aria-label={t("buttons.clearReset")}
+      data-testid="toolbar-clear-canvas"
+      onClick={() => setActiveConfirmDialog("clearCanvas")}
+    />
+  );
+};
+
 /** the main (desktop/tablet) toolbar island */
 export const Toolbar = ({
   app,
@@ -308,6 +338,7 @@ export const Toolbar = ({
         <TextToolButton {...toolProps} />
         <StickyNoteToolButton {...toolProps} />
         <EraserToolButton {...toolProps} />
+        <ClearCanvasButton />
 
         <div
           className="App-toolbar__divider"

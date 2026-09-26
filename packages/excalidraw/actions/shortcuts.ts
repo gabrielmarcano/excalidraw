@@ -52,7 +52,6 @@ export type ShortcutName =
   | "saveScene"
   | "imageExport"
   | "commandPalette"
-  | "searchMenu"
   | "toolLock";
 
 const shortcutMap: Record<ShortcutName, string[]> = {
@@ -110,7 +109,6 @@ const shortcutMap: Record<ShortcutName, string[]> = {
   saveFileToDisk: [getShortcutKey("CtrlOrCmd+S")],
   saveToActiveFile: [getShortcutKey("CtrlOrCmd+S")],
   toggleShortcuts: [getShortcutKey("?")],
-  searchMenu: [getShortcutKey("CtrlOrCmd+F")],
   wrapSelectionInFrame: [],
   toolLock: [getShortcutKey("Q")],
 };

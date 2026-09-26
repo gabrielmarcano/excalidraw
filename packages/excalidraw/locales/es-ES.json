@@ -213,6 +213,23 @@
       "clearSearch": "Borrar búsqueda"
     }
   },
+  "boards": {
+    "title": "Pizarras",
+    "new": "Nueva pizarra",
+    "current": "Abierta",
+    "rename": "Renombrar",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar esta pizarra? No se puede deshacer.",
+    "loading": "Cargando...",
+    "empty": "Aún no hay pizarras.",
+    "elementSingular": "{{count}} elemento",
+    "elementPlural": "{{count}} elementos",
+    "errors": {
+      "notFound": "Esa pizarra ya no existe",
+      "loadFailed": "No se pudieron cargar las pizarras",
+      "generic": "Algo ha salido mal"
+    }
+  },
   "search": {
     "title": "Encontrar en lienzo",
     "noMatch": "No hay coincidencias...",

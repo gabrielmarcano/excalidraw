@@ -13,7 +13,6 @@ import {
   actionToggleGridMode,
   actionToggleMidpointSnapping,
   actionToggleObjectsSnapMode,
-  actionToggleSearchMenu,
   actionToggleStats,
   actionToggleTheme,
   actionToggleZenMode,
@@ -57,7 +56,6 @@ import {
   LoadIcon,
   MoonIcon,
   save,
-  searchIcon,
   SunIcon,
   TrashIcon,
   usersIcon,
@@ -168,27 +166,6 @@ export const CommandPalette = (opts?: { className?: string }) => {
   );
 };
 CommandPalette.displayName = "CommandPalette";
-
-export const SearchMenu = (opts?: { className?: string }) => {
-  const { t } = useI18n();
-  const actionManager = useExcalidrawActionManager();
-
-  return (
-    <DropdownMenuItem
-      icon={searchIcon}
-      data-testid="search-menu-button"
-      onSelect={() => {
-        actionManager.executeAction(actionToggleSearchMenu);
-      }}
-      shortcut={getShortcutFromShortcutName("searchMenu")}
-      aria-label={t("search.title")}
-      className={opts?.className}
-    >
-      {t("search.title")}
-    </DropdownMenuItem>
-  );
-};
-SearchMenu.displayName = "SearchMenu";
 
 export const Help = () => {
   const { t } = useI18n();

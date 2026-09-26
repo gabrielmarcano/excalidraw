@@ -168,6 +168,15 @@
     --editor-container-padding: 0.75rem;
   }
 
+  // Touch-primary tablets get larger hit targets: 2.25rem/2rem are sized for a
+  // mouse cursor and fall under the ~44px touch target guidance.
+  &.excalidraw--tablet {
+    --lg-button-size: 2.75rem;
+    --lg-icon-size: 1.25rem;
+    --default-button-size: 2.375rem;
+    --default-icon-size: 1.125rem;
+  }
+
   @media screen and (min-device-width: 1921px) {
     --lg-button-size: 2.375rem;
     --lg-icon-size: 1.25rem;

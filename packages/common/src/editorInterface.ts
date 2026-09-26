@@ -137,12 +137,22 @@ const isMobileOrTablet = (): boolean => {
 export const getFormFactor = (
   editorWidth: number,
   editorHeight: number,
+  isTouchDevice: boolean = isMobileOrTablet(),
 ): EditorInterface["formFactor"] => {
   if (isMobileBreakpoint(editorWidth, editorHeight)) {
     return "phone";
   }
 
   if (isTabletBreakpoint(editorWidth, editorHeight)) {
+    return "tablet";
+  }
+
+  // Touch-primary devices (android tablets in particular) are routinely wider
+  // than MQ_MAX_TABLET, which was calibrated for ipad air, so the width
+  // heuristic alone reports them as `desktop`. `isMobileOrTablet` already
+  // detects them via `(hover: none)` + `(pointer: coarse)`, which is
+  // independent of resolution and devicePixelRatio.
+  if (isTouchDevice && Math.min(editorWidth, editorHeight) > MQ_MAX_MOBILE) {
     return "tablet";
   }
 

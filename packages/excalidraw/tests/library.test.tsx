@@ -1,4 +1,4 @@
-import { act, queryByTestId } from "@testing-library/react";
+import { act } from "@testing-library/react";
 import React from "react";
 import { vi } from "vitest";
 
@@ -18,7 +18,7 @@ import { Excalidraw } from "../index";
 
 import { API } from "./helpers/api";
 import { UI } from "./helpers/ui";
-import { fireEvent, render, waitFor } from "./test-utils";
+import { render, waitFor } from "./test-utils";
 
 import type { LibraryItem, LibraryItems } from "../types";
 
@@ -239,38 +239,6 @@ describe("library", () => {
     });
     // this has a high flake
     // expect(h.state.activeTool.type).toBe("selection");
-  });
-});
-
-describe("library menu", () => {
-  it("should load library from file picker", async () => {
-    const { container } = await render(<Excalidraw />);
-
-    const latestLibrary = await h.app.library.getLatestLibrary();
-    expect(latestLibrary.length).toBe(0);
-
-    const libraryButton = container.querySelector(".sidebar-trigger");
-
-    fireEvent.click(libraryButton!);
-    fireEvent.click(
-      queryByTestId(
-        container.querySelector(".layer-ui__library")!,
-        "dropdown-menu-button",
-      )!,
-    );
-    fireEvent.click(queryByTestId(container, "lib-dropdown--load")!);
-
-    const libraryItems = parseLibraryJSON(await libraryJSONPromise);
-
-    await waitFor(async () => {
-      const latestLibrary = await h.app.library.getLatestLibrary();
-      expect(latestLibrary.length).toBeGreaterThan(0);
-      expect(latestLibrary.length).toBe(libraryItems.length);
-      const { versionNonce, ...strippedElement } = libraryItems[0]?.elements[0]; // stripped due to mutations
-      expect(latestLibrary[0].elements).toEqual([
-        expect.objectContaining(strippedElement),
-      ]);
-    });
   });
 });
 

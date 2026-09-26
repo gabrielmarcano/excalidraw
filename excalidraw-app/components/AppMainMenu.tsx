@@ -1,4 +1,5 @@
 import {
+  gridIcon,
   loginIcon,
   ExcalLogo,
   eyeIcon,
@@ -22,10 +23,14 @@ export const AppMainMenu: React.FC<{
   isCollabEnabled: boolean;
   theme: Theme | "system";
   refresh: () => void;
+  onBoardsOpen: () => void;
 }> = React.memo((props) => {
   const { t } = useI18n();
   return (
     <MainMenu>
+      <MainMenu.Item icon={gridIcon} onSelect={() => props.onBoardsOpen()}>
+        {t("boards.title")}
+      </MainMenu.Item>
       <MainMenu.DefaultItems.LoadScene />
       <MainMenu.DefaultItems.SaveToActiveFile />
       <MainMenu.DefaultItems.Export />
@@ -37,7 +42,6 @@ export const AppMainMenu: React.FC<{
         />
       )}
       <MainMenu.DefaultItems.CommandPalette className="highlighted" />
-      <MainMenu.DefaultItems.SearchMenu />
       <MainMenu.DefaultItems.Help />
       <MainMenu.DefaultItems.ClearCanvas />
       <MainMenu.Separator />

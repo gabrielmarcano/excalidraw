@@ -27,11 +27,13 @@ describe("<Excalidraw/>", () => {
   });
 
   describe("Test zenModeEnabled prop", () => {
-    it('should show exit zen mode button when zen mode is set and zen mode option in context menu when zenModeEnabled is "undefined"', async () => {
+    it('should show zen mode toggle unchecked, then checked when zen mode is set and zen mode option in context menu when zenModeEnabled is "undefined"', async () => {
       const { container } = await render(<Excalidraw />);
       expect(
-        container.getElementsByClassName("disable-zen-mode--visible").length,
-      ).toBe(0);
+        container
+          .querySelector('[data-testid="zen-mode-toggle"]')
+          ?.getAttribute("aria-pressed"),
+      ).toBe("false");
       expect(h.state.zenModeEnabled).toBe(false);
 
       fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
@@ -46,15 +48,19 @@ describe("<Excalidraw/>", () => {
         "excalidraw--zen-mode",
       );
       expect(
-        container.getElementsByClassName("disable-zen-mode--visible").length,
-      ).toBe(1);
+        container
+          .querySelector('[data-testid="zen-mode-toggle"]')
+          ?.getAttribute("aria-pressed"),
+      ).toBe("true");
     });
 
-    it("should not show exit zen mode button and zen mode option in context menu when zenModeEnabled is set", async () => {
+    it("should show zen mode toggle checked and no zen mode option in context menu when zenModeEnabled is set", async () => {
       const { container } = await render(<Excalidraw zenModeEnabled={true} />);
       expect(
-        container.getElementsByClassName("disable-zen-mode--visible").length,
-      ).toBe(0);
+        container
+          .querySelector('[data-testid="zen-mode-toggle"]')
+          ?.getAttribute("aria-pressed"),
+      ).toBe("true");
       expect(h.state.zenModeEnabled).toBe(true);
 
       fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
@@ -66,8 +72,10 @@ describe("<Excalidraw/>", () => {
       expect(queryByText(contextMenu as HTMLElement, "Zen mode")).toBe(null);
       expect(h.state.zenModeEnabled).toBe(true);
       expect(
-        container.getElementsByClassName("disable-zen-mode--visible").length,
-      ).toBe(0);
+        container
+          .querySelector('[data-testid="zen-mode-toggle"]')
+          ?.getAttribute("aria-pressed"),
+      ).toBe("true");
     });
   });
 
@@ -107,8 +115,10 @@ describe("<Excalidraw/>", () => {
       expect(h.state.gridModeEnabled).toBe(false);
 
       expect(
-        container.getElementsByClassName("disable-zen-mode--visible").length,
-      ).toBe(0);
+        container
+          .querySelector('[data-testid="zen-mode-toggle"]')
+          ?.getAttribute("aria-pressed"),
+      ).toBe("false");
       fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
         button: 2,
         clientX: 1,
@@ -126,8 +136,10 @@ describe("<Excalidraw/>", () => {
       expect(h.state.gridModeEnabled).toBe(false);
 
       expect(
-        container.getElementsByClassName("disable-zen-mode--visible").length,
-      ).toBe(0);
+        container
+          .querySelector('[data-testid="zen-mode-toggle"]')
+          ?.getAttribute("aria-pressed"),
+      ).toBe("false");
       fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
         button: 2,
         clientX: 1,

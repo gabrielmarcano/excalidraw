@@ -135,7 +135,6 @@ export type ActionName =
   | "commandPalette"
   | "autoResize"
   | "elementStats"
-  | "searchMenu"
   | "copyElementLink"
   | "linkToElement"
   | "cropEditor"

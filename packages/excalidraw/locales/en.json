@@ -218,6 +218,23 @@
       "clearSearch": "Clear search"
     }
   },
+  "boards": {
+    "title": "Boards",
+    "new": "New board",
+    "current": "Open",
+    "rename": "Rename",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this board? This cannot be undone.",
+    "loading": "Loading...",
+    "empty": "No boards yet.",
+    "elementSingular": "{{count}} element",
+    "elementPlural": "{{count}} elements",
+    "errors": {
+      "notFound": "That board no longer exists",
+      "loadFailed": "Couldn't load boards",
+      "generic": "Something went wrong"
+    }
+  },
   "search": {
     "title": "Find on canvas",
     "noMatch": "No matches found...",

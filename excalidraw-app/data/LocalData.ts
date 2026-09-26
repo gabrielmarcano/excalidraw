@@ -45,6 +45,7 @@ import { FileManager } from "./FileManager";
 import { FileStatusStore } from "./fileStatusStore";
 import { Locker } from "./Locker";
 import { updateBrowserStateVersion } from "./tabSync";
+import { boards } from "./Boards";
 
 const filesStore = createStore("files-db", "files-store");
 
@@ -95,6 +96,7 @@ const saveDataStateToLocalStorage = (
       STORAGE_KEYS.LOCAL_STORAGE_APP_STATE,
       JSON.stringify(_appState),
     );
+    boards.persistActiveId();
     updateBrowserStateVersion(STORAGE_KEYS.VERSION_DATA_STATE);
     if (localStorageQuotaExceeded) {
       appJotaiStore.set(localStorageQuotaExceededAtom, false);
@@ -123,6 +125,12 @@ export class LocalData {
       onFilesSaved: () => void,
     ) => {
       saveDataStateToLocalStorage(elements, appState);
+
+      try {
+        await boards.saveSnapshot(elements);
+      } catch (error) {
+        console.error(error);
+      }
 
       await this.fileStorage.saveFiles({
         elements,

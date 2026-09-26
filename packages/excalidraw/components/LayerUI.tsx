@@ -90,7 +90,6 @@ interface LayerUIProps {
   elements: readonly NonDeletedExcalidrawElement[];
   onLockToggle: () => void;
   onPenModeToggle: AppClassProperties["togglePenMode"];
-  showExitZenModeBtn: boolean;
   langCode: Language["code"];
   renderTopLeftUI?: ExcalidrawProps["renderTopLeftUI"];
   renderTopRightUI?: ExcalidrawProps["renderTopRightUI"];
@@ -121,7 +120,6 @@ const DefaultMainMenu: React.FC<{
       {UIOptions.canvasActions.saveAsImage && (
         <MainMenu.DefaultItems.SaveAsImage />
       )}
-      <MainMenu.DefaultItems.SearchMenu />
       <MainMenu.DefaultItems.Help />
       <MainMenu.DefaultItems.ClearCanvas />
       <MainMenu.Separator />
@@ -153,7 +151,6 @@ const LayerUI = ({
   canvas,
   onLockToggle,
   onPenModeToggle,
-  showExitZenModeBtn,
   renderTopLeftUI,
   renderTopRightUI,
   renderCustomStats,
@@ -250,9 +247,7 @@ const LayerUI = ({
     return (
       <Section
         heading="selectedShapeActions"
-        className={clsx("selected-shape-actions zen-mode-transition", {
-          "transition-left": appState.zenModeEnabled,
-        })}
+        className="selected-shape-actions"
       >
         {isCompactStylesPanel ? (
           <Island
@@ -319,10 +314,14 @@ const LayerUI = ({
             {renderCanvasActions()}
             {defaultUIEnabled && (
               <div
-                className={clsx("selected-shape-actions-container", {
-                  "selected-shape-actions-container--compact":
-                    isCompactStylesPanel,
-                })}
+                className={clsx(
+                  "selected-shape-actions-container zen-mode-transition",
+                  {
+                    "transition-left": appState.zenModeEnabled,
+                    "selected-shape-actions-container--compact":
+                      isCompactStylesPanel,
+                  },
+                )}
               >
                 {shouldRenderSelectedShapeActions &&
                   renderSelectedShapeActions()}
@@ -349,7 +348,12 @@ const LayerUI = ({
           {defaultUIEnabled &&
             !appState.viewModeEnabled &&
             appState.openDialog?.name !== "elementLinkSelector" && (
-              <Section heading="shapes" className="shapes-section">
+              <Section
+                heading="shapes"
+                className={clsx("shapes-section zen-mode-transition", {
+                  "transition-top": appState.zenModeEnabled,
+                })}
+              >
                 {(heading: React.ReactNode) => (
                   <div style={{ position: "relative" }}>
                     {renderWelcomeScreen && (
@@ -358,9 +362,7 @@ const LayerUI = ({
                     <Stack.Col gap={spacing.toolbarColGap} align="start">
                       <Stack.Row
                         gap={spacing.toolbarRowGap}
-                        className={clsx("App-toolbar-container", {
-                          "zen-mode": appState.zenModeEnabled,
-                        })}
+                        className="App-toolbar-container"
                       >
                         <Toolbar
                           app={app}
@@ -481,7 +483,7 @@ const LayerUI = ({
           <DefaultSidebar.Trigger
             __fallback
             icon={sidebarRightIcon}
-            title={capitalizeString(t("toolBar.library"))}
+            title={capitalizeString(t("boards.title"))}
             onToggle={(open) => {
               if (open) {
                 trackEvent(
@@ -657,7 +659,6 @@ const LayerUI = ({
             <Footer
               appState={appState}
               actionManager={actionManager}
-              showExitZenModeBtn={showExitZenModeBtn}
               renderWelcomeScreen={renderWelcomeScreen}
               defaultUIEnabled={defaultUIEnabled}
               zoomUIEnabled={zoomUIEnabled}
