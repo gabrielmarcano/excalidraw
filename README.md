@@ -1,4 +1,4 @@
-> **Personal tablet fork ("Tablidraw").** This is a personal fork of [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT, © Excalidraw — see [LICENSE](./LICENSE)), customized for pen use on an Android tablet: one-tap clear canvas, an IndexedDB boards library instead of Libraries, a floating zen-mode toggle, and touch-sized UI. Not affiliated with or endorsed by the Excalidraw team.
+> **Personal tablet fork ("Canvas").** This is a personal fork of [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT, © Excalidraw — see [LICENSE](./LICENSE)), customized for pen use on an Android tablet: one-tap clear canvas, an IndexedDB boards library instead of Libraries, a floating zen-mode toggle, and touch-sized UI. Not affiliated with or endorsed by the Excalidraw team.
 
 <a href="https://excalidraw.com/" target="_blank" rel="noopener">
   <picture>

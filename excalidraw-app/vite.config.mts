@@ -226,10 +226,10 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 2.3 * 1024 ** 2, // 2.3MB
         },
         manifest: {
-          short_name: "Tablidraw",
-          name: "Tablidraw — Personal Whiteboard",
+          short_name: "Canvas",
+          name: "Canvas — Personal Whiteboard",
           description:
-            "Tablidraw is a personal tablet-friendly whiteboard, forked from Excalidraw (MIT), with a boards library, zen mode and touch-sized UI.",
+            "Canvas is a personal tablet-friendly whiteboard, forked from Excalidraw (MIT), with a boards library, zen mode and touch-sized UI.",
           icons: [
             {
               src: "android-chrome-192x192.png",
@@ -253,7 +253,7 @@ export default defineConfig(({ mode }) => {
             },
           ],
           start_url: "/",
-          id: "tablidraw-personal",
+          id: "canvas-personal",
           display: "standalone",
           theme_color: "#121212",
           background_color: "#ffffff",
