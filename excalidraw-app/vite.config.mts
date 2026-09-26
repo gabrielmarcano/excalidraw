@@ -226,10 +226,10 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 2.3 * 1024 ** 2, // 2.3MB
         },
         manifest: {
-          short_name: "Excalidraw",
-          name: "Excalidraw",
+          short_name: "Tablidraw",
+          name: "Tablidraw — Personal Whiteboard",
           description:
-            "Excalidraw is a whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them.",
+            "Tablidraw is a personal tablet-friendly whiteboard, forked from Excalidraw (MIT), with a boards library, zen mode and touch-sized UI.",
           icons: [
             {
               src: "android-chrome-192x192.png",
@@ -253,7 +253,7 @@ export default defineConfig(({ mode }) => {
             },
           ],
           start_url: "/",
-          id: "excalidraw",
+          id: "tablidraw-personal",
           display: "standalone",
           theme_color: "#121212",
           background_color: "#ffffff",
