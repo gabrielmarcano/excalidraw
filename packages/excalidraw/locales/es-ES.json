@@ -222,6 +222,8 @@
     "deleteConfirm": "¿Eliminar esta pizarra? No se puede deshacer.",
     "loading": "Cargando...",
     "empty": "Aún no hay pizarras.",
+    "search": "Buscar pizarras",
+    "noResults": "Ninguna pizarra coincide con la búsqueda.",
     "elementSingular": "{{count}} elemento",
     "elementPlural": "{{count}} elementos",
     "errors": {

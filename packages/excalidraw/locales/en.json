@@ -227,6 +227,8 @@
     "deleteConfirm": "Delete this board? This cannot be undone.",
     "loading": "Loading...",
     "empty": "No boards yet.",
+    "search": "Search boards",
+    "noResults": "No boards match your search.",
     "elementSingular": "{{count}} element",
     "elementPlural": "{{count}} elements",
     "errors": {

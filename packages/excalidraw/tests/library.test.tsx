@@ -2,7 +2,7 @@ import { act } from "@testing-library/react";
 import React from "react";
 import { vi } from "vitest";
 
-import { KEYS, MIME_TYPES, ORIG_ID } from "@excalidraw/common";
+import { MIME_TYPES, ORIG_ID } from "@excalidraw/common";
 
 import { getCommonBoundingBox } from "@excalidraw/element";
 

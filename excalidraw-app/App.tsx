@@ -33,7 +33,14 @@ import {
   isDevEnv,
 } from "@excalidraw/common";
 import polyfill from "@excalidraw/excalidraw/polyfill";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
 import { t } from "@excalidraw/excalidraw/i18n";
 
@@ -108,7 +115,6 @@ import {
   exportToExcalidrawPlus,
 } from "./components/ExportToExcalidrawPlus";
 import { TopErrorBoundary } from "./components/TopErrorBoundary";
-import { BoardsDialog } from "./components/BoardsDialog";
 
 import {
   exportToBackend,
@@ -812,8 +818,13 @@ const ExcalidrawWrapper = () => {
     null,
   );
 
-  const [isBoardsDialogOpen, setIsBoardsDialogOpen] = useState(false);
-
+  // the active board is mutated outside React (module-level `initializeScene`),
+  // so subscribe to it rather than reading it during render
+  const activeBoardId = useSyncExternalStore(
+    boards.subscribe,
+    boards.getActiveIdSnapshot,
+    () => null,
+  );
   const loadBoardFiles = useCallback(
     (elements: readonly ExcalidrawElement[]) => {
       if (!excalidrawAPI) {
@@ -1206,20 +1217,7 @@ const ExcalidrawWrapper = () => {
           isCollabEnabled={!isCollabDisabled}
           theme={appTheme}
           refresh={() => forceRefresh((prev) => !prev)}
-          onBoardsOpen={() => setIsBoardsDialogOpen(true)}
         />
-        {isBoardsDialogOpen && (
-          <BoardsDialog
-            activeBoardId={boards.getActive()?.id ?? null}
-            onCloseRequest={() => setIsBoardsDialogOpen(false)}
-            onOpenBoard={openBoard}
-            onCreateBoard={async (name) => {
-              await createBoard(name);
-            }}
-            onRenameBoard={renameBoard}
-            onDeleteBoard={deleteBoard}
-          />
-        )}
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}
           isCollabEnabled={!isCollabDisabled}
@@ -1287,7 +1285,7 @@ const ExcalidrawWrapper = () => {
         />
 
         <AppSidebar
-          activeBoardId={boards.getActive()?.id ?? null}
+          activeBoardId={activeBoardId}
           onOpenBoard={openBoard}
           onCreateBoard={async (name) => {
             await createBoard(name);

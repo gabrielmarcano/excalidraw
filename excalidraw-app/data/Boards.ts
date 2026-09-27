@@ -78,6 +78,7 @@ const generateBoardId = () => {
 export class Boards {
   private backend: BoardsBackend;
   private activeBoard: ActiveBoard | null = null;
+  private listeners = new Set<() => void>();
 
   constructor(backend: BoardsBackend) {
     this.backend = backend;
@@ -87,7 +88,19 @@ export class Boards {
 
   setActive = (board: ActiveBoard | null) => {
     this.activeBoard = board;
+    // `setActive` is also called from module-level `initializeScene`, which
+    // cannot touch component state, so notify subscribers instead
+    this.listeners.forEach((listener) => listener());
   };
+
+  subscribe = (listener: () => void) => {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  };
+
+  getActiveIdSnapshot = (): string | null => this.activeBoard?.id ?? null;
 
   getStoredActiveId = (): string | null => {
     try {
@@ -164,10 +177,19 @@ export class Boards {
     if (!active) {
       return;
     }
+    const next = getNonDeletedElements(elements);
+    const current = await this.backend.get(active.id);
+    if (
+      current &&
+      current.elements.length === next.length &&
+      JSON.stringify(current.elements) === JSON.stringify(next)
+    ) {
+      return;
+    }
     const record: BoardRecord = {
       ...active,
       updatedAt: Date.now(),
-      elements: getNonDeletedElements(elements),
+      elements: next,
     };
     await this.backend.set(active.id, record);
   };

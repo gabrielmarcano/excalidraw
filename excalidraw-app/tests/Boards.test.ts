@@ -152,4 +152,40 @@ describe("Boards", () => {
 
     expect(await boards.getReferencedFileIds()).toEqual(["file-1", "file-2"]);
   });
+
+  it("does not bump updatedAt when saving identical elements", async () => {
+    const board = await boards.create({
+      name: "Stable",
+      elements: [element("a")],
+    });
+    boards.setActive({
+      id: board.id,
+      name: board.name,
+      createdAt: board.createdAt,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await boards.saveSnapshot([element("a")]);
+
+    expect((await boards.get(board.id))?.updatedAt).toBe(board.updatedAt);
+  });
+
+  it("bumps updatedAt when saving changed elements", async () => {
+    const board = await boards.create({
+      name: "Edited",
+      elements: [element("a")],
+    });
+    boards.setActive({
+      id: board.id,
+      name: board.name,
+      createdAt: board.createdAt,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await boards.saveSnapshot([element("a"), element("b")]);
+
+    expect((await boards.get(board.id))?.updatedAt).toBeGreaterThan(
+      board.updatedAt,
+    );
+  });
 });

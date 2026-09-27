@@ -4,6 +4,8 @@ import { useI18n } from "@excalidraw/excalidraw/i18n";
 
 import { boards } from "../data/Boards";
 
+import "./BoardsList.scss";
+
 import type { BoardSummary } from "../data/Boards";
 
 type BoardsListProps = {
@@ -35,6 +37,11 @@ export const BoardsList = (props: BoardsListProps) => {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  const visibleSummaries = (summaries ?? []).filter((summary) =>
+    summary.name.toLowerCase().includes(query.trim().toLowerCase()),
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -116,6 +123,13 @@ export const BoardsList = (props: BoardsListProps) => {
         >
           {t("boards.new")}
         </button>
+        <input
+          className="boards-dialog__input boards-dialog__search"
+          value={query}
+          placeholder={t("boards.search")}
+          aria-label={t("boards.search")}
+          onChange={(event) => setQuery(event.target.value)}
+        />
         {errorMessage && (
           <span className="boards-dialog__error" role="alert">
             {errorMessage}
@@ -126,9 +140,11 @@ export const BoardsList = (props: BoardsListProps) => {
         <div className="boards-dialog__empty">{t("boards.loading")}</div>
       ) : summaries.length === 0 ? (
         <div className="boards-dialog__empty">{t("boards.empty")}</div>
+      ) : visibleSummaries.length === 0 ? (
+        <div className="boards-dialog__empty">{t("boards.noResults")}</div>
       ) : (
         <div className="boards-dialog__list">
-          {summaries.map((summary) => {
+          {visibleSummaries.map((summary) => {
             const isActive = summary.id === props.activeBoardId;
             const isRenaming = renamingId === summary.id;
             const isDeleting = deletingId === summary.id;
@@ -143,6 +159,7 @@ export const BoardsList = (props: BoardsListProps) => {
                     className="boards-dialog__input"
                     value={renameValue}
                     autoFocus
+                    aria-label={t("boards.rename")}
                     onChange={(event) => setRenameValue(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
@@ -225,11 +242,6 @@ export const BoardsList = (props: BoardsListProps) => {
                     <span>{formatUpdatedAt(summary.updatedAt, langCode)}</span>
                   </span>
                 </button>
-                {isActive && (
-                  <span className="boards-dialog__badge">
-                    {t("boards.current")}
-                  </span>
-                )}
                 <div className="boards-dialog__actions">
                   <button
                     type="button"
