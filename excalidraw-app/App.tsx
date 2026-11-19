@@ -875,6 +875,9 @@ const ExcalidrawWrapper = () => {
       return;
     }
 
+    // Preload boards list so opening the sidebar is instant from the first click
+    boards.list().catch(() => {});
+
     const initialActive = boards.getActive();
     if (initialActive) {
       cloudSync.recordBoardElements(
@@ -914,6 +917,8 @@ const ExcalidrawWrapper = () => {
         if (active && active.id === event.boardId) {
           loadBoardFiles(excalidrawAPI.getSceneElementsIncludingDeleted());
         }
+      } else if (event.type === "boards:changed") {
+        boards.list().catch(() => {});
       }
     });
 

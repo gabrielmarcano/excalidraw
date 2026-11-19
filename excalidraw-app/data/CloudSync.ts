@@ -221,6 +221,13 @@ export const fetchRemoteFile = async (
   }
 };
 
+const REMOTE_LIST_TTL_MS = 15_000;
+let lastRemoteListFetchAt = 0;
+
+export const invalidateRemoteBoardsCache = () => {
+  lastRemoteListFetchAt = 0;
+};
+
 const REMOTE_SAVE_DEBOUNCE_MS = 1200;
 const pendingRemoteSaves = new Map<
   string,
@@ -292,10 +299,19 @@ export const createSyncedBoardsBackend = (
       return localBoards;
     }
 
+    const now = Date.now();
+    if (
+      lastRemoteListFetchAt > 0 &&
+      now - lastRemoteListFetchAt < REMOTE_LIST_TTL_MS
+    ) {
+      return localBoards;
+    }
+
     const remoteBoards = await fetchRemoteBoards();
     if (!remoteBoards) {
       return localBoards;
     }
+    lastRemoteListFetchAt = Date.now();
 
     const merged = new Map<string, BoardRecord>();
     for (const board of remoteBoards) {
@@ -395,6 +411,9 @@ class CloudSyncClient {
           const parsed = JSON.parse(event.data) as CloudSyncEvent | { type: "pong" };
           if (parsed.type === "pong") {
             return;
+          }
+          if (parsed.type === "boards:changed") {
+            invalidateRemoteBoardsCache();
           }
           this.listeners.forEach((listener) => listener(parsed));
         } catch {

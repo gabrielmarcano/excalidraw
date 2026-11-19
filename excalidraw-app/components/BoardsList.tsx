@@ -32,7 +32,9 @@ const formatUpdatedAt = (timestamp: number, langCode: string) => {
 
 export const BoardsList = (props: BoardsListProps) => {
   const { t, langCode } = useI18n();
-  const [summaries, setSummaries] = useState<BoardSummary[] | null>(null);
+  const [summaries, setSummaries] = useState<BoardSummary[] | null>(() =>
+    boards.getCachedSummaries(),
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);

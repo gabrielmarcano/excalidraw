@@ -81,11 +81,31 @@ const generateBoardId = () => {
 export class Boards {
   private backend: BoardsBackend;
   private activeBoard: ActiveBoard | null = null;
+  private cachedSummaries: BoardSummary[] | null = null;
   private listeners = new Set<() => void>();
 
   constructor(backend: BoardsBackend) {
     this.backend = backend;
   }
+
+  getCachedSummaries = (): BoardSummary[] | null => this.cachedSummaries;
+
+  private updateCachedSummary = (record: BoardRecord) => {
+    if (!this.cachedSummaries) {
+      return;
+    }
+    const nextSummary: BoardSummary = {
+      id: record.id,
+      name: record.name,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      elementCount: getNonDeletedElements(record.elements).length,
+    };
+    this.cachedSummaries = [
+      nextSummary,
+      ...this.cachedSummaries.filter((s) => s.id !== record.id),
+    ].sort((a, b) => b.updatedAt - a.updatedAt);
+  };
 
   getActive = (): ActiveBoard | null => this.activeBoard;
 
@@ -130,7 +150,7 @@ export class Boards {
 
   list = async (): Promise<BoardSummary[]> => {
     const records = await this.backend.list();
-    return records
+    const summaries = records
       .map((record) => ({
         id: record.id,
         name: record.name,
@@ -139,6 +159,8 @@ export class Boards {
         elementCount: getNonDeletedElements(record.elements).length,
       }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
+    this.cachedSummaries = summaries;
+    return summaries;
   };
 
   get = async (id: string): Promise<BoardRecord | null> => {
@@ -172,6 +194,7 @@ export class Boards {
       elements: getNonDeletedElements(opts.elements),
     };
     await this.backend.set(record.id, record);
+    this.updateCachedSummary(record);
     return record;
   };
 
@@ -197,6 +220,7 @@ export class Boards {
       elements: next,
     };
     await this.backend.set(active.id, record);
+    this.updateCachedSummary(record);
   };
 
   rename = async (id: string, name: string): Promise<BoardRecord | null> => {
@@ -206,6 +230,7 @@ export class Boards {
     }
     const next: BoardRecord = { ...record, name, updatedAt: Date.now() };
     await this.backend.set(id, next);
+    this.updateCachedSummary(next);
     if (this.activeBoard?.id === id) {
       this.activeBoard = { ...this.activeBoard, name };
     }
@@ -214,6 +239,9 @@ export class Boards {
 
   remove = async (id: string) => {
     await this.backend.remove(id);
+    if (this.cachedSummaries) {
+      this.cachedSummaries = this.cachedSummaries.filter((s) => s.id !== id);
+    }
     if (this.activeBoard?.id === id) {
       this.activeBoard = null;
     }
