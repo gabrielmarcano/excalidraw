@@ -24,22 +24,6 @@ type BoardRecord = {
   elements: unknown[];
 };
 
-type WsIncomingMessage =
-  | { type: "ping" }
-  | {
-      type: "board:sync";
-      boardId: string;
-      name?: string;
-      createdAt?: number;
-      updatedAt?: number;
-      elements: unknown[];
-    }
-  | {
-      type: "file:ready";
-      boardId: string;
-      fileIds: string[];
-    };
-
 const corsHeaders = (env: Env, request: Request): Record<string, string> => {
   const configured = env.ALLOWED_ORIGIN?.trim() || "*";
   const requestOrigin = request.headers.get("Origin");
@@ -316,69 +300,23 @@ export class CanvasHub extends DurableObject<Env> {
       return;
     }
 
-    let parsed: WsIncomingMessage;
-    try {
-      parsed = JSON.parse(message) as WsIncomingMessage;
-    } catch {
+    if (message === '{"type":"ping"}') {
+      ws.send('{"type":"pong"}');
       return;
     }
 
-    if (parsed.type === "ping") {
-      ws.send(JSON.stringify({ type: "pong" }));
-      return;
-    }
-
-    if (
-      parsed.type === "board:sync" &&
-      typeof parsed.boardId === "string" &&
-      Array.isArray(parsed.elements)
-    ) {
-      const now = parsed.updatedAt ?? Date.now();
-      const existing = this.ctx.storage.sql
-        .exec<BoardRow>(
-          `SELECT id, name, created_at, updated_at, elements
-           FROM boards
-           WHERE id = ?`,
-          parsed.boardId,
-        )
-        .toArray()[0];
-
-      const record: BoardRecord = {
-        id: parsed.boardId,
-        name: parsed.name ?? existing?.name ?? "Untitled",
-        createdAt: parsed.createdAt ?? existing?.created_at ?? now,
-        updatedAt: now,
-        elements: parsed.elements,
-      };
-
-      this.upsertBoard(record);
-
-      this.broadcast(
-        {
-          type: "board:sync",
-          boardId: record.id,
-          name: record.name,
-          updatedAt: record.updatedAt,
-          elements: record.elements,
-        },
-        ws,
-      );
-      return;
-    }
-
-    if (
-      parsed.type === "file:ready" &&
-      typeof parsed.boardId === "string" &&
-      Array.isArray(parsed.fileIds)
-    ) {
-      this.broadcast(
-        {
-          type: "file:ready",
-          boardId: parsed.boardId,
-          fileIds: parsed.fileIds,
-        },
-        ws,
-      );
+    // Fast path: relay live deltas and file:ready notifications immediately
+    // with zero JSON parsing or SQLite I/O on the hot path.
+    // Durable persistence is handled by debounced PUT /api/boards/:id.
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket === ws) {
+        continue;
+      }
+      try {
+        socket.send(message);
+      } catch {
+        // Ignore broken sockets; runtime will clean them up
+      }
     }
   }
 

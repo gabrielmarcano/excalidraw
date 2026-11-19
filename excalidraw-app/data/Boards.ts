@@ -31,6 +31,7 @@ export type ActiveBoard = Pick<BoardRecord, "id" | "name" | "createdAt">;
 
 export type BoardsBackend = {
   get: (id: string) => Promise<BoardRecord | undefined>;
+  getLocal?: (id: string) => Promise<BoardRecord | undefined>;
   set: (id: string, record: BoardRecord) => Promise<void>;
   remove: (id: string) => Promise<void>;
   list: () => Promise<BoardRecord[]>;
@@ -180,7 +181,9 @@ export class Boards {
       return;
     }
     const next = getNonDeletedElements(elements);
-    const current = await this.backend.get(active.id);
+    const current = this.backend.getLocal
+      ? await this.backend.getLocal(active.id)
+      : await this.backend.get(active.id);
     if (
       current &&
       current.elements.length === next.length &&

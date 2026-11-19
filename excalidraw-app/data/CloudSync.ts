@@ -221,6 +221,32 @@ export const fetchRemoteFile = async (
   }
 };
 
+const REMOTE_SAVE_DEBOUNCE_MS = 1200;
+const pendingRemoteSaves = new Map<
+  string,
+  { record: BoardRecord; timer: ReturnType<typeof setTimeout> }
+>();
+
+export const flushRemoteBoardSaves = () => {
+  for (const [id, entry] of pendingRemoteSaves) {
+    clearTimeout(entry.timer);
+    pendingRemoteSaves.delete(id);
+    putRemoteBoard(entry.record).catch(() => {});
+  }
+};
+
+const scheduleRemoteBoardSave = (record: BoardRecord) => {
+  const existing = pendingRemoteSaves.get(record.id);
+  if (existing) {
+    clearTimeout(existing.timer);
+  }
+  const timer = setTimeout(() => {
+    pendingRemoteSaves.delete(record.id);
+    putRemoteBoard(record).catch(() => {});
+  }, REMOTE_SAVE_DEBOUNCE_MS);
+  pendingRemoteSaves.set(record.id, { record, timer });
+};
+
 /**
  * Wraps a local BoardsBackend (IndexedDB) with Cloudflare sync when configured.
  * Always writes to local storage first so the app stays responsive offline.
@@ -228,6 +254,8 @@ export const fetchRemoteFile = async (
 export const createSyncedBoardsBackend = (
   local: BoardsBackend,
 ): BoardsBackend => ({
+  getLocal: (id) => local.get(id),
+
   get: async (id) => {
     if (isCloudSyncEnabled()) {
       const remote = await fetchRemoteBoard(id);
@@ -242,11 +270,16 @@ export const createSyncedBoardsBackend = (
   set: async (id, record) => {
     await local.set(id, record);
     if (isCloudSyncEnabled()) {
-      await putRemoteBoard(record);
+      scheduleRemoteBoardSave(record);
     }
   },
 
   remove: async (id) => {
+    const pending = pendingRemoteSaves.get(id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      pendingRemoteSaves.delete(id);
+    }
     await local.remove(id);
     if (isCloudSyncEnabled()) {
       await deleteRemoteBoard(id);
@@ -302,7 +335,7 @@ export const createSyncedBoardsBackend = (
   },
 });
 
-const BROADCAST_THROTTLE_MS = 80;
+const BROADCAST_THROTTLE_MS = 33; // ~30fps leading+trailing delta streaming
 const PING_INTERVAL_MS = 25_000;
 
 class CloudSyncClient {
@@ -314,13 +347,13 @@ class CloudSyncClient {
   private intentionalClose = false;
 
   private lastSceneVersionByBoard = new Map<string, number>();
-  private pendingBroadcast: {
-    boardId: string;
-    name?: string;
-    createdAt?: number;
-    elements: readonly ExcalidrawElement[];
-  } | null = null;
-  private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
+  private sentElementVersionsByBoard = new Map<string, Map<string, number>>();
+  private pendingDeltaByBoard = new Map<
+    string,
+    Map<string, ExcalidrawElement>
+  >();
+  private throttleTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastFlushAt = 0;
 
   connect = () => {
     if (!isCloudSyncEnabled()) {
@@ -395,9 +428,9 @@ class CloudSyncClient {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    if (this.broadcastTimer) {
-      clearTimeout(this.broadcastTimer);
-      this.broadcastTimer = null;
+    if (this.throttleTimer) {
+      clearTimeout(this.throttleTimer);
+      this.throttleTimer = null;
     }
     if (this.ws) {
       this.ws.close();
@@ -412,36 +445,72 @@ class CloudSyncClient {
     };
   };
 
-  recordSceneVersion = (boardId: string, version: number) => {
-    this.lastSceneVersionByBoard.set(boardId, version);
+  recordBoardElements = (
+    boardId: string,
+    elements: readonly ExcalidrawElement[],
+  ) => {
+    this.lastSceneVersionByBoard.set(boardId, getSceneVersion(elements));
+    let versionMap = this.sentElementVersionsByBoard.get(boardId);
+    if (!versionMap) {
+      versionMap = new Map<string, number>();
+      this.sentElementVersionsByBoard.set(boardId, versionMap);
+    }
+    for (const el of elements) {
+      const prev = versionMap.get(el.id) ?? -1;
+      if (el.version > prev) {
+        versionMap.set(el.id, el.version);
+      }
+    }
   };
 
   broadcastBoardElements = (
     boardId: string,
     elements: readonly ExcalidrawElement[],
-    meta?: { name?: string; createdAt?: number },
   ) => {
     if (!isCloudSyncEnabled()) {
       return;
     }
-    const version = getSceneVersion(elements);
-    if (this.lastSceneVersionByBoard.get(boardId) === version) {
+    const sceneVersion = getSceneVersion(elements);
+    if (this.lastSceneVersionByBoard.get(boardId) === sceneVersion) {
       return;
     }
-    this.lastSceneVersionByBoard.set(boardId, version);
+    this.lastSceneVersionByBoard.set(boardId, sceneVersion);
 
-    this.pendingBroadcast = {
-      boardId,
-      name: meta?.name,
-      createdAt: meta?.createdAt,
-      elements,
-    };
+    let versionMap = this.sentElementVersionsByBoard.get(boardId);
+    if (!versionMap) {
+      versionMap = new Map<string, number>();
+      this.sentElementVersionsByBoard.set(boardId, versionMap);
+    }
 
-    if (!this.broadcastTimer) {
-      this.broadcastTimer = setTimeout(() => {
-        this.broadcastTimer = null;
+    let deltaMap = this.pendingDeltaByBoard.get(boardId);
+    let hasChanges = false;
+    for (const el of elements) {
+      const prevVersion = versionMap.get(el.id) ?? -1;
+      if (el.version > prevVersion) {
+        versionMap.set(el.id, el.version);
+        if (!deltaMap) {
+          deltaMap = new Map<string, ExcalidrawElement>();
+          this.pendingDeltaByBoard.set(boardId, deltaMap);
+        }
+        deltaMap.set(el.id, el);
+        hasChanges = true;
+      }
+    }
+
+    if (!hasChanges) {
+      return;
+    }
+
+    const now = Date.now();
+    const elapsed = now - this.lastFlushAt;
+    if (elapsed >= BROADCAST_THROTTLE_MS && !this.throttleTimer) {
+      // Leading edge: send immediately with 0ms delay on pen-down
+      this.flushBroadcast();
+    } else if (!this.throttleTimer) {
+      this.throttleTimer = setTimeout(() => {
+        this.throttleTimer = null;
         this.flushBroadcast();
-      }, BROADCAST_THROTTLE_MS);
+      }, Math.max(0, BROADCAST_THROTTLE_MS - elapsed));
     }
   };
 
@@ -463,25 +532,32 @@ class CloudSyncClient {
   };
 
   private flushBroadcast = () => {
-    const pending = this.pendingBroadcast;
-    if (!pending || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (
+      !this.pendingDeltaByBoard.size ||
+      !this.ws ||
+      this.ws.readyState !== WebSocket.OPEN
+    ) {
       return;
     }
-    this.pendingBroadcast = null;
-    try {
-      this.ws.send(
-        JSON.stringify({
-          type: "board:sync",
-          boardId: pending.boardId,
-          name: pending.name,
-          createdAt: pending.createdAt,
-          updatedAt: Date.now(),
-          elements: pending.elements,
-        }),
-      );
-    } catch (error) {
-      console.warn("CloudSync: failed to send board update", error);
+    this.lastFlushAt = Date.now();
+    for (const [boardId, deltaMap] of this.pendingDeltaByBoard) {
+      const changedElements = [...deltaMap.values()];
+      if (!changedElements.length) {
+        continue;
+      }
+      try {
+        this.ws.send(
+          JSON.stringify({
+            type: "board:sync",
+            boardId,
+            elements: changedElements,
+          }),
+        );
+      } catch (error) {
+        console.warn("CloudSync: failed to send board update", error);
+      }
     }
+    this.pendingDeltaByBoard.clear();
   };
 
   private startPing = () => {

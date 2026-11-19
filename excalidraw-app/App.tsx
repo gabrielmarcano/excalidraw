@@ -3,7 +3,6 @@ import {
   LiveCollaborationTrigger,
   TTDDialogTrigger,
   CaptureUpdateAction,
-  getSceneVersion,
   reconcileElements,
   useEditorInterface,
   ExcalidrawAPIProvider,
@@ -131,6 +130,7 @@ import { FileStatusStore } from "./data/fileStatusStore";
 import { boards } from "./data/Boards";
 import {
   cloudSync,
+  flushRemoteBoardSaves,
   initSyncTokenFromUrl,
   isCloudSyncEnabled,
 } from "./data/CloudSync";
@@ -789,7 +789,7 @@ const ExcalidrawWrapper = () => {
     } else if (isCloudSyncEnabled()) {
       const activeBoard = boards.getActive();
       if (activeBoard) {
-        cloudSync.broadcastBoardElements(activeBoard.id, elements, activeBoard);
+        cloudSync.broadcastBoardElements(activeBoard.id, elements);
       }
     }
 
@@ -883,6 +883,14 @@ const ExcalidrawWrapper = () => {
       return;
     }
 
+    const initialActive = boards.getActive();
+    if (initialActive) {
+      cloudSync.recordBoardElements(
+        initialActive.id,
+        excalidrawAPI.getSceneElementsIncludingDeleted(),
+      );
+    }
+
     cloudSync.connect();
 
     const unsubscribe = cloudSync.subscribe((event) => {
@@ -903,10 +911,7 @@ const ExcalidrawWrapper = () => {
           excalidrawAPI.getAppState(),
         );
         reconciled = bumpElementVersions(reconciled, existingElements);
-        cloudSync.recordSceneVersion(
-          event.boardId,
-          getSceneVersion(reconciled),
-        );
+        cloudSync.recordBoardElements(event.boardId, reconciled);
         excalidrawAPI.updateScene({
           elements: reconciled,
           captureUpdate: CaptureUpdateAction.NEVER,
@@ -926,13 +931,20 @@ const ExcalidrawWrapper = () => {
       }
     };
 
+    const handleBeforeUnload = () => {
+      flushRemoteBoardSaves();
+    };
+
     window.addEventListener("online", handleReconnect);
+    window.addEventListener("beforeunload", handleBeforeUnload);
     document.addEventListener("visibilitychange", handleReconnect);
 
     return () => {
       unsubscribe();
       window.removeEventListener("online", handleReconnect);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("visibilitychange", handleReconnect);
+      flushRemoteBoardSaves();
       cloudSync.disconnect();
     };
   }, [excalidrawAPI, loadBoardFiles]);
@@ -943,6 +955,7 @@ const ExcalidrawWrapper = () => {
         return;
       }
       LocalData.flushSave();
+      flushRemoteBoardSaves();
       const record = await boards.get(id);
       if (!record) {
         excalidrawAPI.setToast({ message: t("boards.errors.notFound") });
@@ -956,7 +969,7 @@ const ExcalidrawWrapper = () => {
       const elements = restoreElements(record.elements, null, {
         repairBindings: true,
       });
-      cloudSync.recordSceneVersion(record.id, getSceneVersion(elements));
+      cloudSync.recordBoardElements(record.id, elements);
       excalidrawAPI.updateScene({
         elements,
         appState: { name: record.name },
@@ -982,6 +995,7 @@ const ExcalidrawWrapper = () => {
         return null;
       }
       LocalData.flushSave();
+      flushRemoteBoardSaves();
       const record = await boards.create({
         name: name?.trim() || t("labels.untitled"),
         elements: [],
