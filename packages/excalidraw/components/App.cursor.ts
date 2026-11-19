@@ -1,5 +1,6 @@
 import {
   CURSOR_TYPE,
+  KEYS,
   MIME_TYPES,
   THEME,
   getStrokeWidthByKey,
@@ -217,12 +218,17 @@ export class AppCursor {
     const EventConstructor =
       typeof PointerEvent !== "undefined" ? PointerEvent : MouseEvent;
 
+    // with the modifiers held now, which the move would otherwise release
+    const modifiers = this.app.modifiers.get();
     this.canvas.dispatchEvent(
       new EventConstructor("pointermove", {
         bubbles: true,
         cancelable: true,
         clientX: lastEvent.clientX,
         clientY: lastEvent.clientY,
+        altKey: modifiers.alt,
+        shiftKey: modifiers.shift,
+        [KEYS.CTRL_OR_CMD]: modifiers.ctrlOrCmd,
       }),
     );
   };
@@ -238,7 +244,7 @@ export class AppCursor {
 
     if (!this.eraserCanvasCache || this.eraserCanvasCache.theme !== theme) {
       const isDarkTheme = theme === THEME.DARK;
-      this.eraserCanvasCache = document.createElement("canvas");
+      this.eraserCanvasCache = this.app.ownerDocument.createElement("canvas");
       this.eraserCanvasCache.theme = theme;
       this.eraserCanvasCache.height = cursorImageSizePx;
       this.eraserCanvasCache.width = cursorImageSizePx;

@@ -6,6 +6,7 @@ import { t } from "../../i18n";
 import { UndoRedoActions, ZoomActions } from "../Actions";
 import { useApp } from "../App";
 import { IconButton } from "../IconButton";
+import { Minimap } from "../Minimap/Minimap";
 import { Section } from "../Section";
 import Stack from "../Stack";
 import { coffeeIcon } from "../icons";
@@ -19,12 +20,15 @@ const Footer = ({
   renderWelcomeScreen,
   defaultUIEnabled,
   zoomUIEnabled,
+  minimapUIEnabled,
 }: {
   appState: UIAppState;
   actionManager: ActionManager;
   renderWelcomeScreen: boolean;
   defaultUIEnabled: boolean;
   zoomUIEnabled: boolean;
+  /** whether the minimap (when toggled on) and its toggle are rendered */
+  minimapUIEnabled: boolean;
 }) => {
   const { FooterCenterTunnel, WelcomeScreenHelpHintTunnel } = useTunnels();
   const app = useApp();
@@ -34,21 +38,29 @@ const Footer = ({
       role="contentinfo"
       className="layer-ui__wrapper__footer App-menu App-menu_bottom"
     >
+      {/* footer-left is not faded out in zen mode: it holds the zoom controls,
+          which stay visible (chrome-less). Its children opt in individually. */}
       {(defaultUIEnabled || (zoomUIEnabled && app.isNavigationEnabled())) && (
-        <div
-          className={clsx(
-            "layer-ui__wrapper__footer-left zen-mode-transition",
-            {
-              "layer-ui__wrapper__footer-left--transition-left":
-                appState.zenModeEnabled,
-            },
+        <div className="layer-ui__wrapper__footer-left zen-mode-transition">
+          {minimapUIEnabled && appState.minimapEnabled && (
+            <Minimap
+              className={clsx("zen-mode-transition", {
+                "layer-ui__wrapper__footer-left--transition-bottom":
+                  appState.zenModeEnabled,
+              })}
+            />
           )}
-        >
           <Stack.Col gap={2}>
             <Section heading="canvasActions">
-              {zoomUIEnabled && app.isNavigationEnabled() && (
-                <ZoomActions renderAction={actionManager.renderAction} />
-              )}
+              {(zoomUIEnabled || minimapUIEnabled) &&
+                app.isNavigationEnabled() && (
+                  <ZoomActions
+                    actionManager={actionManager}
+                    zoomUIEnabled={zoomUIEnabled}
+                    minimapUIEnabled={minimapUIEnabled}
+                    zenModeEnabled={appState.zenModeEnabled}
+                  />
+                )}
 
               {defaultUIEnabled && !appState.viewModeEnabled && (
                 <UndoRedoActions

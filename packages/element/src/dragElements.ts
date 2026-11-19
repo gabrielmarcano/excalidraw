@@ -15,7 +15,13 @@ import type {
 
 import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 
-import { unbindBindingElement, updateBoundElements } from "./binding";
+import {
+  getFrameArrowIdsToReattach,
+  getSimultaneouslyUpdatedElementIds,
+  moveFrameArrows,
+  unbindBindingElement,
+  updateBoundElements,
+} from "./binding";
 import { getCommonBounds } from "./bounds";
 import { getPerfectElementSize } from "./sizeHelpers";
 import { getBoundTextElement } from "./textElement";
@@ -28,6 +34,7 @@ import {
   isTextElement,
 } from "./typeChecks";
 
+import type { RenderEnvironment } from "./renderEnvironment";
 import type { Scene } from "./Scene";
 
 import type { ExcalidrawElement, ExcalidrawTextElement } from "./types";
@@ -42,6 +49,8 @@ export const dragSelectedElements = (
     y: number;
   },
   gridSize: NullableGridSize,
+  /** measures the labels of the bound arrows the drag moves */
+  renderEnvironment?: RenderEnvironment,
 ) => {
   if (
     _selectedElements.length === 1 &&
@@ -103,11 +112,19 @@ export const dragSelectedElements = (
     gridSize,
   );
 
-  const elementsToUpdateIds = new Set(
-    Array.from(elementsToUpdate, (el) => el.id),
+  // one array for the whole update, so that every element's bound-arrow
+  // update and the unbinding checks share its cached id set
+  const elementsToUpdateArray = Array.from(elementsToUpdate);
+  const elementsToUpdateIds = getSimultaneouslyUpdatedElementIds(
+    elementsToUpdateArray,
   );
+  const frameArrowIds = getFrameArrowIdsToReattach(elementsToUpdateArray);
 
   elementsToUpdate.forEach((element) => {
+    if (frameArrowIds.has(element.id)) {
+      // moved with their frame once the rest has (below)
+      return;
+    }
     if (!isArrowElement(element)) {
       updateElementCoords(pointerDownState, element, scene, adjustedOffset);
 
@@ -125,7 +142,8 @@ export const dragSelectedElements = (
         );
       }
       updateBoundElements(element, scene, {
-        simultaneouslyUpdated: Array.from(elementsToUpdate),
+        simultaneouslyUpdated: elementsToUpdateArray,
+        renderEnvironment,
       });
     } else if (
       // NOTE: Add a little initial drag to the arrow dragging when the arrow
@@ -157,6 +175,11 @@ export const dragSelectedElements = (
         }
       }
     }
+  });
+
+  moveFrameArrows(frameArrowIds, adjustedOffset, scene, {
+    originalElements: pointerDownState.originalElements,
+    renderEnvironment,
   });
 };
 
@@ -240,6 +263,7 @@ export const dragNewTextElement = ({
   nextY,
   zoom,
   scene,
+  renderEnvironment,
   informMutation = true,
 }: {
   newElement: ExcalidrawTextElement;
@@ -251,6 +275,7 @@ export const dragNewTextElement = ({
   nextY?: number;
   zoom: NormalizedZoomValue;
   scene: Scene;
+  renderEnvironment?: RenderEnvironment;
   informMutation?: boolean;
 }) => {
   const offset = pointerX - anchorX;
@@ -269,6 +294,7 @@ export const dragNewTextElement = ({
         fontFamily: newElement.fontFamily,
       }),
       newElement.lineHeight,
+      renderEnvironment,
     ),
   );
 
@@ -297,6 +323,7 @@ export const dragNewElement = ({
   shouldResizeFromCenter,
   zoom,
   scene,
+  renderEnvironment,
   widthAspectRatio = null,
   originOffset = null,
   informMutation = true,
@@ -313,6 +340,7 @@ export const dragNewElement = ({
   shouldResizeFromCenter: boolean;
   zoom: NormalizedZoomValue;
   scene: Scene;
+  renderEnvironment?: RenderEnvironment;
   /** whether to keep given aspect ratio when `isResizeWithSidesSameLength` is
       true */
   widthAspectRatio?: number | null;
@@ -360,6 +388,7 @@ export const dragNewElement = ({
       nextY: originY + (originOffset?.y ?? 0),
       zoom,
       scene,
+      renderEnvironment,
       informMutation,
     });
     return;
