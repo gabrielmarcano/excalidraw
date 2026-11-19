@@ -9,6 +9,8 @@ import type { ExcalidrawElement, FileId } from "@excalidraw/element/types";
 
 import { STORAGE_KEYS } from "../app_constants";
 
+import { createSyncedBoardsBackend } from "./CloudSync";
+
 export type BoardRecord = {
   id: string;
   name: string;
@@ -215,4 +217,4 @@ export class Boards {
   };
 }
 
-export const boards = new Boards(idbBoardsBackend);
+export const boards = new Boards(createSyncedBoardsBackend(idbBoardsBackend));

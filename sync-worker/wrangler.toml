@@ -1,0 +1,16 @@
+name = "canvas-sync"
+main = "src/index.ts"
+compatibility_date = "2025-05-01"
+
+[vars]
+# Optional: restrict CORS to your Vercel URL, e.g. "https://canvas-excalidraw.vercel.app"
+ALLOWED_ORIGIN = "*"
+
+[durable_objects]
+bindings = [
+  { name = "CANVAS_HUB", class_name = "CanvasHub" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CanvasHub"]

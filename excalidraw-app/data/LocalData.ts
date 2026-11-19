@@ -46,6 +46,12 @@ import { FileStatusStore } from "./fileStatusStore";
 import { Locker } from "./Locker";
 import { updateBrowserStateVersion } from "./tabSync";
 import { boards } from "./Boards";
+import {
+  cloudSync,
+  fetchRemoteFile,
+  isCloudSyncEnabled,
+  uploadRemoteFile,
+} from "./CloudSync";
 
 const filesStore = createStore("files-db", "files-store");
 
@@ -191,6 +197,8 @@ export class LocalData {
 
           const filesToSave: [FileId, BinaryFileData][] = [];
 
+          const missingIds: FileId[] = [];
+
           filesData.forEach((data, index) => {
             const id = ids[index];
             if (data) {
@@ -201,9 +209,31 @@ export class LocalData {
               filesToSave.push([id, _data]);
               loadedFiles.push(_data);
             } else {
-              erroredFiles.set(id, true);
+              missingIds.push(id);
             }
           });
+
+          if (missingIds.length) {
+            if (isCloudSyncEnabled()) {
+              await Promise.all(
+                missingIds.map(async (id) => {
+                  const remoteFile = await fetchRemoteFile(id);
+                  if (remoteFile) {
+                    const _data: BinaryFileData = {
+                      ...remoteFile,
+                      lastRetrieved: Date.now(),
+                    };
+                    filesToSave.push([id, _data]);
+                    loadedFiles.push(_data);
+                  } else {
+                    erroredFiles.set(id, true);
+                  }
+                }),
+              );
+            } else {
+              missingIds.forEach((id) => erroredFiles.set(id, true));
+            }
+          }
 
           try {
             // save loaded files back to storage with updated `lastRetrieved`
@@ -225,17 +255,32 @@ export class LocalData {
       // before an IDB write finishes will read the latest value.
       updateBrowserStateVersion(STORAGE_KEYS.VERSION_FILES);
 
+      const uploadedFileIds: FileId[] = [];
+
       await Promise.all(
         [...addedFiles].map(async ([id, fileData]) => {
           try {
             await set(id, fileData, filesStore);
             savedFiles.set(id, fileData);
+            if (isCloudSyncEnabled()) {
+              const uploaded = await uploadRemoteFile(id, fileData);
+              if (uploaded) {
+                uploadedFileIds.push(id);
+              }
+            }
           } catch (error: any) {
             console.error(error);
             erroredFiles.set(id, fileData);
           }
         }),
       );
+
+      if (uploadedFileIds.length) {
+        const activeBoardId = boards.getActive()?.id;
+        if (activeBoardId) {
+          cloudSync.sendFileReady(activeBoardId, uploadedFileIds);
+        }
+      }
 
       return { savedFiles, erroredFiles };
     },

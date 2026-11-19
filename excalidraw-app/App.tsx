@@ -3,6 +3,7 @@ import {
   LiveCollaborationTrigger,
   TTDDialogTrigger,
   CaptureUpdateAction,
+  getSceneVersion,
   reconcileElements,
   useEditorInterface,
   ExcalidrawAPIProvider,
@@ -116,6 +117,7 @@ import {
   exportToExcalidrawPlus,
 } from "./components/ExportToExcalidrawPlus";
 import { TopErrorBoundary } from "./components/TopErrorBoundary";
+import { SyncAuthGate } from "./components/SyncAuthGate";
 
 import {
   exportToBackend,
@@ -127,6 +129,11 @@ import {
 import { updateStaleImageStatuses } from "./data/FileManager";
 import { FileStatusStore } from "./data/fileStatusStore";
 import { boards } from "./data/Boards";
+import {
+  cloudSync,
+  initSyncTokenFromUrl,
+  isCloudSyncEnabled,
+} from "./data/CloudSync";
 import {
   importFromLocalStorage,
   importUsernameFromLocalStorage,
@@ -233,6 +240,8 @@ const initializeScene = async (opts: {
     | { isExternalScene: false; id?: null; key?: null }
   )
 > => {
+  initSyncTokenFromUrl();
+
   const searchParams = new URLSearchParams(window.location.search);
   const id = searchParams.get("id");
   const jsonBackendMatch = window.location.hash.match(
@@ -241,9 +250,16 @@ const initializeScene = async (opts: {
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
 
   const storedActiveBoardId = boards.getStoredActiveId();
-  const activeBoard = storedActiveBoardId
+  let activeBoard = storedActiveBoardId
     ? await boards.get(storedActiveBoardId)
     : null;
+
+  if (!activeBoard && isCloudSyncEnabled()) {
+    const summaries = await boards.list();
+    if (summaries.length) {
+      activeBoard = await boards.get(summaries[0].id);
+    }
+  }
 
   boards.setActive(
     activeBoard
@@ -770,6 +786,11 @@ const ExcalidrawWrapper = () => {
   ) => {
     if (collabAPI?.isCollaborating()) {
       collabAPI.syncElements(elements);
+    } else if (isCloudSyncEnabled()) {
+      const activeBoard = boards.getActive();
+      if (activeBoard) {
+        cloudSync.broadcastBoardElements(activeBoard.id, elements, activeBoard);
+      }
     }
 
     // this check is redundant, but since this is a hot path, it's best
@@ -857,6 +878,65 @@ const ExcalidrawWrapper = () => {
     [excalidrawAPI],
   );
 
+  useEffect(() => {
+    if (!excalidrawAPI || !isCloudSyncEnabled()) {
+      return;
+    }
+
+    cloudSync.connect();
+
+    const unsubscribe = cloudSync.subscribe((event) => {
+      if (event.type === "board:sync") {
+        const active = boards.getActive();
+        if (!active || active.id !== event.boardId) {
+          return;
+        }
+        const existingElements =
+          excalidrawAPI.getSceneElementsIncludingDeleted();
+        const restoredRemote = restoreElements(
+          event.elements,
+          existingElements,
+        );
+        let reconciled = reconcileElements(
+          existingElements,
+          restoredRemote as RemoteExcalidrawElement[],
+          excalidrawAPI.getAppState(),
+        );
+        reconciled = bumpElementVersions(reconciled, existingElements);
+        cloudSync.recordSceneVersion(
+          event.boardId,
+          getSceneVersion(reconciled),
+        );
+        excalidrawAPI.updateScene({
+          elements: reconciled,
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+        loadBoardFiles(reconciled);
+      } else if (event.type === "file:ready") {
+        const active = boards.getActive();
+        if (active && active.id === event.boardId) {
+          loadBoardFiles(excalidrawAPI.getSceneElementsIncludingDeleted());
+        }
+      }
+    });
+
+    const handleReconnect = () => {
+      if (document.visibilityState === "visible") {
+        cloudSync.connect();
+      }
+    };
+
+    window.addEventListener("online", handleReconnect);
+    document.addEventListener("visibilitychange", handleReconnect);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("online", handleReconnect);
+      document.removeEventListener("visibilitychange", handleReconnect);
+      cloudSync.disconnect();
+    };
+  }, [excalidrawAPI, loadBoardFiles]);
+
   const openBoard = useCallback(
     async (id: string) => {
       if (!excalidrawAPI || id === boards.getActive()?.id) {
@@ -876,6 +956,7 @@ const ExcalidrawWrapper = () => {
       const elements = restoreElements(record.elements, null, {
         repairBindings: true,
       });
+      cloudSync.recordSceneVersion(record.id, getSceneVersion(elements));
       excalidrawAPI.updateScene({
         elements,
         appState: { name: record.name },
@@ -1514,7 +1595,9 @@ const ExcalidrawApp = () => {
     <TopErrorBoundary>
       <Provider store={appJotaiStore}>
         <ExcalidrawAPIProvider>
-          <ExcalidrawWrapper />
+          <SyncAuthGate>
+            <ExcalidrawWrapper />
+          </SyncAuthGate>
         </ExcalidrawAPIProvider>
       </Provider>
     </TopErrorBoundary>

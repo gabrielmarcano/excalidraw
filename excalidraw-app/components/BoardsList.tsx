@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@excalidraw/excalidraw/i18n";
 
 import { boards } from "../data/Boards";
+import { cloudSync } from "../data/CloudSync";
 
 import "./BoardsList.scss";
 
@@ -54,6 +55,14 @@ export const BoardsList = (props: BoardsListProps) => {
 
   useEffect(() => {
     refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    return cloudSync.subscribe((event) => {
+      if (event.type === "boards:changed") {
+        refresh();
+      }
+    });
   }, [refresh]);
 
   const run = async (task: () => void | Promise<void>, close = false) => {
